@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Optional
 
 from qbitdebrid.clients.torbox import TorBoxClient
@@ -149,9 +150,22 @@ class AutomationDaemon:
         """Background task to wait for TorBox, capture current state, and mutate seamlessly."""
         try:
             # 1. Export raw .torrent file first so we can upload it to TorBox
-            torrent_data = await self.qbit_controller.export_torrent(torrent.hash)
+            count = 0
+            torrent_data = 0
+            while not torrent_data and count<20:
+                try:
+                    torrent_data = await self.qbit_controller.export_torrent(torrent.hash)
+                    if not torrent_data:
+                        logger.info("waiting_for_metadata", name=torrent.name)
+                        time.sleep(15)
+                        count = count + 1
+                except:
+                    logger.info("waiting_for_metadata", name=torrent.name)
+                    time.sleep(15)
+                    count = count + 1                    
+                    pass
             if not torrent_data:
-                logger.error("failed_to_export_torrent_for_torbox", name=torrent.name)
+                logger.error("failed_to_export_torrent_for_torbox_nigger", name=torrent.name)
                 return
                 
             # 2. Add to TorBox dashboard by uploading the raw .torrent
@@ -180,6 +194,8 @@ class AutomationDaemon:
             # Fetch the raw torrent data again to get the exact unparsed state string
             raw_torrents = self.qbit_controller.client.torrents_info(torrent_hashes=latest_torrent.hash)
             raw_state = raw_torrents[0].get("state", "").lower() if raw_torrents else ""
+            category = raw_torrents[0].get("category", "") if raw_torrents else ""
+            logger.warning("torrent_category_found", name=category)
             
             was_paused = "pause" in raw_state or "stop" in raw_state
             is_checking = "check" in raw_state
@@ -195,6 +211,7 @@ class AutomationDaemon:
             decoded[b"info"][b"source"] = f"qbitdebrid_{latest_torrent.hash}".encode("utf-8")
             web_seed_url = f"http://{self.proxy_host}:{self.proxy_port}/proxy/{latest_torrent.hash}/"
             decoded[b"url-list"] = web_seed_url.encode("utf-8")
+            decoded[b"category"] = category
             
             # Store the original hash, priorities, and play/pause state securely in the torrent comment
             comment_str = f"qbitdebrid_original_hash:{latest_torrent.info_hash}"
@@ -219,7 +236,8 @@ class AutomationDaemon:
                 save_path=latest_torrent.save_path, 
                 tags=latest_torrent.tags,
                 is_paused=False,
-                stop_condition="FilesChecked" if was_paused else None
+                category=category,
+                stop_condition="FilesChecked" if was_paused else None,
             )
             
             if success:

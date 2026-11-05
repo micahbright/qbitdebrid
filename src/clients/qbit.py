@@ -212,13 +212,14 @@ class QBitController:
             logger.error("qbit_export_failed", torrent_hash=torrent_hash, error=str(e))
             return None
 
-    async def add_raw_torrent(self, torrent_data: bytes, save_path: str, tags: str, is_paused: bool = True, stop_condition: Optional[str] = None) -> bool:
+    async def add_raw_torrent(self, torrent_data: bytes, save_path: str, tags: str, is_paused: bool = True, category: str = "", stop_condition: Optional[str] = None) -> bool:
         try:
             kwargs = {
                 "torrent_files": torrent_data,
                 "save_path": save_path,
                 "tags": tags,
                 "is_paused": is_paused,
+                "category": category
             }
             if stop_condition:
                 kwargs["stop_condition"] = stop_condition
